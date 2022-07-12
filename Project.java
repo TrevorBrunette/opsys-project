@@ -12,8 +12,9 @@ public class Project {
 
 
     public static void main(String[] args) {
-        if ( args.length != 8 ){
+        if ( args.length != 8 ) {
             System.err.println("ERROR: incorrect Number of Arguments.");
+            System.exit(1);
         }
 
         try {
@@ -26,15 +27,31 @@ public class Project {
             tsclice = Long.parseLong(args[7]);
 
         }
-        catch (NumberFormatException e){
+        catch (Exception e) {
             System.err.println("ERROR: error parsing arguments");
+            System.exit(1);
         }
 
-        if(n > 26) {
+        if (n > 26) {
             System.err.println("ERROR: too many processes");
+            System.exit(1);
         }
 
+    }
 
+    public static void print_stats(String algorithm, double burst, double wait, double turnaround,
+                                   int switches, int preemptions, double utilization) {
+        System.out.println("Algorithm " + algorithm);
+        System.out.printf("-- average CPU burst time: %.3f ms\n", format_double(burst));
+        System.out.printf("-- average wait time: %.3f ms\n", format_double(wait));
+        System.out.printf("-- average turnaround time: %.3f ms\n", format_double(turnaround));
+        System.out.printf("-- total number of context switches: %d\n", switches);
+        System.out.printf("-- total number of preemptions: %d\n", preemptions);
+        System.out.printf("-- CPU utilization: %.3f%%\n", format_double(utilization));
+    }
+
+    private static double format_double(double d) {
+        return Math.ceil(d*1000)/1000;
     }
 
     public static void test() {
@@ -53,6 +70,8 @@ public class Project {
                 System.out.print(b.toString() + " ");
             System.out.println("");
         }
+
+        print_stats("test", 1.2345, 3.456789, 5.01, 6, 9, 1.2);
     }
 
 }
