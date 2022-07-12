@@ -58,7 +58,7 @@ public class RNG {
         for (int i = 0; i < nproc; ++i) {
             ArrayList<Long> bi = new ArrayList<>(2 * ncpu.get(i) - 1);
             for (int j = 0; j < 2 * ncpu.get(i) - 1; ++j)
-                bi.add((long) Math.ceil((j % 2 == 0 ? 1 : 10) * next_exp()));
+                bi.add((j % 2 == 0 ? 1 : 10) * (long) Math.ceil(next_exp()));
             b.add(bi);
         }
 

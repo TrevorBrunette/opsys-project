@@ -2,29 +2,29 @@ import java.util.ArrayList;
 
 public class Project {
 
-    static long n;
-    static long seed;
-    static double lambda;
-    static long upper_bound;
-    static long tcs;
-    static long tau;
-    static long tsclice;
+    private static long n;
+    private static long seed;
+    private static double lambda;
+    private static long upper_bound;
+    private static long tcs;
+    private static double tau;
+    private static long tsclice;
 
 
     public static void main(String[] args) {
-        if ( args.length != 8 ) {
+        if ( args.length != 7 ) {
             System.err.println("ERROR: incorrect Number of Arguments.");
             System.exit(1);
         }
 
         try {
-            n = Long.parseLong(args[1]);
-            seed = Long.parseLong(args[2]);
-            lambda = Double.parseDouble(args[3]);
-            upper_bound = Long.parseLong(args[4]);
-            tcs = Long.parseLong(args[5]);
-            tau = Long.parseLong(args[6]);
-            tsclice = Long.parseLong(args[7]);
+            n = Long.parseLong(args[0]);
+            seed = Long.parseLong(args[1]);
+            lambda = Double.parseDouble(args[2]);
+            upper_bound = Long.parseLong(args[3]);
+            tcs = Long.parseLong(args[4]);
+            tau = Double.parseDouble(args[5]);
+            tsclice = Long.parseLong(args[6]);
 
         }
         catch (Exception e) {
@@ -37,6 +37,7 @@ public class Project {
             System.exit(1);
         }
 
+        test();
     }
 
     public static void print_stats(String algorithm, double burst, double wait, double turnaround,
@@ -54,11 +55,20 @@ public class Project {
         return Math.ceil(d*1000)/1000;
     }
 
+    public static void print_process(int proc, long arrival, long tau, ArrayList<Long> bursts) {
+        System.out.printf("Process %s: arrival time: %dms; tau %dms; %d CPU bursts\n", proc_to_name(proc), arrival, tau, (bursts.size()+1)/2);
+        for(int i = 0; i < bursts.size() - 1; i += 2) {
+            System.out.printf("--> CPU burst %dms --> I/O burst %dms\n", bursts.get(i), bursts.get(i+1));
+        }
+        System.out.printf("--> CPU burst %dms\n", bursts.get(bursts.size()-1));
+    }
+
+    private static String proc_to_name(int proc) {
+        assert proc < 26;
+        return "" + (char)(proc + 'A');
+    }
+
     public static void test() {
-        n = 3;
-        seed = 19;
-        lambda = 0.01;
-        upper_bound = 4096;
         RNG rng = new RNG(seed, lambda, upper_bound);
         ArrayList<Long> arrival_times = rng.arrival_times(n);
         ArrayList<ArrayList<Long>> bursts = rng.bursts(n);
@@ -70,7 +80,7 @@ public class Project {
                 System.out.print(b.toString() + " ");
             System.out.println("");
         }
-
+        print_process(0, arrival_times.get(0), (long)(1/lambda), bursts.get(0));
         print_stats("test", 1.2345, 3.456789, 5.01, 6, 9, 1.2);
     }
 
