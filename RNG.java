@@ -1,6 +1,7 @@
 import java.math.BigInteger;
 import java.util.ArrayList;
 
+/* Emulate C drand48() functionality */
 public class RNG {
     private static final long m48 = 1L << 48;
 
