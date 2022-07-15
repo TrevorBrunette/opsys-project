@@ -10,6 +10,8 @@ public class Process {
 
     public int current_burst;
     public int elapsed_time;
+    public int turnaround_time;
+    public int wait_time;
 
     public boolean waiting = false;
 
