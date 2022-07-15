@@ -1,5 +1,10 @@
+import java.io.BufferedWriter;
+import java.io.File;
+import java.io.FileWriter;
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashMap;
 
 public class Project {
 
@@ -77,12 +82,12 @@ public class Project {
         return Math.ceil(d*1000)/1000;
     }
 
-    public static void print_process(int proc, long arrival, long tau, ArrayList<Long> bursts) {
-        System.out.printf("Process %s: arrival time: %dms; tau %dms; %d CPU bursts\n", proc_to_name(proc), arrival, tau, (bursts.size()+1)/2);
-        for(int i = 0; i < bursts.size() - 1; i += 2) {
-            System.out.printf("--> CPU burst %dms --> I/O burst %dms\n", bursts.get(i), bursts.get(i+1));
+    public static void print_process(Process process) {
+        System.out.printf("Process %s: arrival time %dms; tau %dms; %d CPU bursts:\n", process.name(), process.getArrivalTime(), process.tau, (process.getBursts().size()+1)/2);
+        for(int i = 0; i < process.getBursts().size() - 1; i += 2) {
+            System.out.printf("--> CPU burst %dms --> I/O burst %dms\n", process.getBursts().get(i), process.getBursts().get(i+1));
         }
-        System.out.printf("--> CPU burst %dms\n", bursts.get(bursts.size()-1));
+        System.out.printf("--> CPU burst %dms\n", process.getBursts().get(process.getBursts().size()-1));
     }
 
     private static String proc_to_name(int proc) {
@@ -95,13 +100,40 @@ public class Project {
 
         ArrayList<Process> processes = rng.processes(n);
 
-//        for (Process p : processes)
-//            System.out.println(p);
+        File file = new File("simout.txt");
+        BufferedWriter writer = null;
 
-        //SJF((cloneProcesses(processes)));
-        RR(tslice, cloneProcesses(processes));
-        //print_process(0, processes.get(0).getArrivalTime(), (long)(1/lambda), processes.get(0).getBursts());
-        //print_stats("test", 1.2345, 3.456789, 5.01, 6, 9, 1.2);
+        try {
+            writer = new BufferedWriter(new FileWriter(file));
+        } catch (IOException e) {
+            System.err.println("ERROR: could not create file 'simout.txt'");
+            System.exit(1);
+        }
+
+        for (Process p : processes) {
+            print_process(p);
+        }
+        System.out.println();
+
+        run_processes(processes, writer);
+    }
+
+    public static void run_processes(ArrayList<Process> processes, BufferedWriter writer) {
+        System.out.println("\ntime " + 0 + "ms: Simulator started for FCFS [Q: empty]");
+        long FCFS_time = FCFS(cloneProcesses(processes), writer);
+        System.out.println("time " + FCFS_time + "ms: Simulator ended for FCFS [Q: empty]");
+
+        //System.out.println("\ntime " + 0 + "ms: Simulator started for SJF [Q: empty]");
+        //long SJF_time = SJF(cloneProcesses(processes), writer);
+        //System.out.println("time " + SJF_time + "ms: Simulator ended for SJF [Q: empty]");
+
+        //System.out.println("\ntime " + 0 + "ms: Simulator started for SRT [Q: empty]");
+        //long SRT_time = SRT(cloneProcesses(processes), writer);
+        //System.out.println("time " + SRT_time + "ms: Simulator ended for SRT [Q: empty]");
+
+        System.out.println("\ntime " + 0 + "ms: Simulator started for RR with time slice " + tslice +"ms [Q: empty]");
+        long RR_time = RR(tslice, cloneProcesses(processes), writer);
+        System.out.println("time " + RR_time + "ms: Simulator ended for RR [Q: empty]");
     }
 
     public static String queueString(ArrayList<Process> queue) {
