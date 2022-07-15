@@ -70,15 +70,17 @@ public class Project {
         test();
     }
 
-    public static void print_stats(String algorithm, double burst, double wait, double turnaround,
+    public static String get_stats(String algorithm, double burst, double wait, double turnaround,
                                    int switches, int preemptions, double utilization) {
-        System.out.println("Algorithm " + algorithm);
-        System.out.printf("-- average CPU burst time: %.3f ms\n", format_double(burst));
-        System.out.printf("-- average wait time: %.3f ms\n", format_double(wait));
-        System.out.printf("-- average turnaround time: %.3f ms\n", format_double(turnaround));
-        System.out.printf("-- total number of context switches: %d\n", switches);
-        System.out.printf("-- total number of preemptions: %d\n", preemptions);
-        System.out.printf("-- CPU utilization: %.3f%%\n", format_double(utilization));
+        String out = "";
+        out += String.format("Algorithm " + algorithm);
+        out += String.format("-- average CPU burst time: %.3f ms\n", format_double(burst));
+        out += String.format("-- average wait time: %.3f ms\n", format_double(wait));
+        out += String.format("-- average turnaround time: %.3f ms\n", format_double(turnaround));
+        out += String.format("-- total number of context switches: %d\n", switches);
+        out += String.format("-- total number of preemptions: %d\n", preemptions);
+        out += String.format("-- CPU utilization: %.3f%%\n", format_double(utilization));
+        return out;
     }
 
     private static double format_double(double d) {
@@ -91,11 +93,6 @@ public class Project {
             System.out.printf("--> CPU burst %dms --> I/O burst %dms\n", process.getBursts().get(i), process.getBursts().get(i+1));
         }
         System.out.printf("--> CPU burst %dms\n", process.getBursts().get(process.getBursts().size()-1));
-    }
-
-    private static String proc_to_name(int proc) {
-        assert proc < 26;
-        return "" + (char)(proc + 'A');
     }
 
     public static void test() {
@@ -137,14 +134,6 @@ public class Project {
         System.out.println("\ntime " + 0 + "ms: Simulator started for RR with time slice " + tslice +"ms [Q: empty]");
         long RR_time = RR(tslice, cloneProcesses(processes), writer);
         System.out.println("time " + RR_time + "ms: Simulator ended for RR [Q: empty]");
-    }
-
-    public static String queueString(ArrayList<Process> queue) {
-        String out = "[Q:";
-        if(queue.size() > 0) for(Process ps : queue) out += (" " + ps.name());
-        else out += (" empty");
-        out += ("]");
-        return out;
     }
 
 }
