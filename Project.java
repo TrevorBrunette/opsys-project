@@ -4,7 +4,6 @@ import java.io.FileWriter;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Comparator;
-import java.util.HashMap;
 
 public class Project {
 
@@ -16,6 +15,7 @@ public class Project {
     public static double alpha;
     public static long tslice;
 
+    // for process queue to know when processes arrive
     private static Comparator<Process> arrivalComparator = new Comparator<Process>(){
         @Override
         public int compare(Process o1, Process o2) {
@@ -23,13 +23,16 @@ public class Project {
         }
     };
 
+    // for SRT
     private static Comparator<Process> runtimeComparator = new Comparator<Process>(){
         @Override
         public int compare(Process o1, Process o2) {
             return Long.compare(o1.tau, o2.tau);
         }
     };
+    // may need to make a new one for SJF
 
+    // for addressing ties
     private static Comparator<Process> idComparator = new Comparator<Process>(){
         @Override
         public int compare(Process o1, Process o2) {
