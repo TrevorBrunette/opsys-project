@@ -65,4 +65,21 @@ public class RNG {
         return b;
     }
 
+    public ArrayList<Process> processes(long nproc) {
+        ArrayList<Process> out = new ArrayList<>();
+
+        /* CPU and IO Bursts */
+        for (int i = 0; i < nproc; ++i) {
+            long arrival = (long) Math.floor(next_exp());
+            long num = (long) Math.ceil(100 * next_uniform());
+            ArrayList<Long> bi = new ArrayList<>();
+
+            for (int j = 0; j < 2 * num - 1; ++j)
+                bi.add((j % 2 == 0 ? 1 : 10) * (long) Math.ceil(next_exp()));
+            out.add(new Process(i, arrival, bi));
+        }
+
+        return out;
+    }
+
 }
