@@ -19,7 +19,9 @@ public class Project {
     private static Comparator<Process> arrivalComparator = new Comparator<Process>(){
         @Override
         public int compare(Process o1, Process o2) {
-            return Long.compare(o1.getArrivalTime(), o2.getArrivalTime());
+            int i = Long.compare(o1.getArrivalTime(), o2.getArrivalTime());
+            if(i == 0) return idComparator.compare(o1, o2);
+            else return i;
         }
     };
 
@@ -27,7 +29,9 @@ public class Project {
     private static Comparator<Process> runtimeComparator = new Comparator<Process>(){
         @Override
         public int compare(Process o1, Process o2) {
-            return Long.compare(o1.tau, o2.tau);
+            int i = Long.compare(o1.tau, o2.tau);
+            if(i == 0) return idComparator.compare(o1, o2);
+            else return i;
         }
     };
     // may need to make a new one for SJF
@@ -73,7 +77,7 @@ public class Project {
     public static String get_stats(String algorithm, double burst, double wait, double turnaround,
                                    int switches, int preemptions, double utilization) {
         String out = "";
-        out += String.format("Algorithm " + algorithm);
+        out += String.format("Algorithm " + algorithm + "\n");
         out += String.format("-- average CPU burst time: %.3f ms\n", format_double(burst));
         out += String.format("-- average wait time: %.3f ms\n", format_double(wait));
         out += String.format("-- average turnaround time: %.3f ms\n", format_double(turnaround));
@@ -88,7 +92,9 @@ public class Project {
     }
 
     public static void print_process(Process process) {
-        System.out.printf("Process %s: arrival time %dms; tau %dms; %d CPU bursts:\n", process.name(), process.getArrivalTime(), process.tau, (process.getBursts().size()+1)/2);
+        long bursts = (process.getBursts().size()+1)/2;
+        String plural = (bursts == 1) ? "" : "s";
+        System.out.printf("Process %s: arrival time %dms; tau %dms; %d CPU burst" + plural + ":\n", process.name(), process.getArrivalTime(), process.tau, bursts);
         for(int i = 0; i < process.getBursts().size() - 1; i += 2) {
             System.out.printf("--> CPU burst %dms --> I/O burst %dms\n", process.getBursts().get(i), process.getBursts().get(i+1));
         }
@@ -136,6 +142,207 @@ public class Project {
         return time;
     }
 
+    // The SRT algorithm is a preemptive version of the SJF algorithm. In SRT, when a process arrives,
+    // as it enters the ready queue, if it has a predicted CPU burst time that is less than the remaining
+    // predicted time of the currently running process, a preemption occurs. When such a preemption
+    // occurs, the currently running process is added back to the ready queue.
+    public static long SRT(ArrayList<Process> processes, BufferedWriter writer) {
+        boolean srtdebug = false;
+        long time = 0;
+        int context_switches = 0;
+        int preemptions = 0;
+        int utilized = 0;
+        int burst_sum = 0;
+        int burst_count = 0;
+
+        for (Process p : processes) {
+            ArrayList<Long> bursts = p.getBursts();
+            for(int i = 0; i < bursts.size(); i+=2){
+                burst_sum += bursts.get(i);
+                burst_count++;
+            }
+        }
+        double average_burst_time = burst_sum / (double) burst_count;
+        int turnaround_time = 0;
+        int wait_time = 0;
+
+        processes.sort(arrivalComparator);
+        ArrayList<Process> queue = new ArrayList<>();
+        ArrayList<Process> waiting = new ArrayList<>();
+
+        long context_wait = 0;
+        Process curr_proc = null;
+        Process to_add = null;
+        Process from_queue = null;
+        while (!queue.isEmpty() || curr_proc!=null || !processes.isEmpty() || !waiting.isEmpty() || to_add != null || from_queue != null) {
+
+            //1 compare current process
+            if(curr_proc != null && context_wait == 0) {
+                if(curr_proc.getBursts().get(curr_proc.current_burst) == curr_proc.elapsed_time) {
+                    // we are done with the current process before it reaches its allotted time
+                    curr_proc.elapsed_time = 0;
+                    long old_tau = curr_proc.tau;
+                    curr_proc.current_burst++; // use that method instead of curr_proc.current_burst++;
+
+                    turnaround_time += curr_proc.turnaround_time;
+                    curr_proc.turnaround_time = 0;
+                    wait_time += curr_proc.wait_time;
+                    curr_proc.wait_time = 0;
+
+                    if(curr_proc.current_burst == curr_proc.getBursts().size()){
+                        // the current process is done with its bursts and terminates
+                        System.out.println("time " + time + "ms: Process " + curr_proc.name() + " terminated " + queueString(queue));
+                    } else {
+                        // the current process has more bursts and goes to the back of the queue
+
+                        int remaining_bursts = ((curr_proc.getBursts().size()/2) - curr_proc.current_burst/2);
+                        String s = remaining_bursts == 1 ? "" : "s";
+                        if (srtdebug || time < 1000)
+                            System.out.println("time " + time + "ms: Process " + curr_proc.name() + " (tau " + curr_proc.tau + "ms) completed a CPU burst; " + remaining_bursts +
+                                    " burst" + s + " to go " + queueString(queue));
+
+                        //TAU
+                        curr_proc.recalculateTau();
+                        if (srtdebug || time < 1000)
+                            System.out.printf("time %dms: Recalculated tau for process %s: old tau %dms; new tau %dms %s\n",
+                                    time, curr_proc.name(), old_tau, curr_proc.tau, queueString(queue));
+                        queue.sort(tauComparator);
+
+
+                        if (srtdebug || time < 1000)
+                            System.out.println("time " + time + "ms: Process " + curr_proc.name() + " switching out of CPU; will block on I/O until time " +
+                                    (time + curr_proc.getBursts().get(curr_proc.current_burst) + tcs / 2) + "ms " + queueString(queue));
+                        curr_proc.waiting = true;
+                        long iotime = curr_proc.getBursts().get(curr_proc.current_burst);
+                        curr_proc.getBursts().set(curr_proc.current_burst, iotime + tcs/2);
+                        waiting.add(curr_proc);
+                        waiting.sort(idComparator);
+                    }
+                    curr_proc = null;
+                    context_wait += tcs / 2;
+                }
+            }
+
+            Process to_be_preempted = null;
+            //2 compare waiting processes
+            for(int i = 0; i < waiting.size(); i++){
+                Process p = waiting.get(i);
+                if(p.elapsed_time == p.getBursts().get(p.current_burst)){
+                    // process is done waiting on I/O
+                    p.waiting = false;
+                    p.elapsed_time = 0;
+                    p.current_burst++;
+                    waiting.remove(p);
+                    if (to_be_preempted == null && curr_proc != null && p.tau < curr_proc.tau - curr_proc.elapsed_time) {
+                        // then preempt
+                        to_be_preempted = p;
+                        queue.add(p);
+                        queue.sort(tauComparator);
+                        if (srtdebug || time < 1000)
+                            System.out.printf("time %dms: Process %s (tau %dms) completed I/O; preempting %s %s\n",
+                                    time, p.name(), p.tau, curr_proc.name(), queueString(queue));
+                        queue.add(curr_proc);
+                        queue.sort(tauComparator);
+                        preemptions++;
+                        context_wait += tcs/2;
+                        to_be_preempted.wait_time -= tcs/2;
+                        to_be_preempted.turnaround_time -= tcs/2;
+                        curr_proc = null;
+                    } else {
+                        queue.add(p);
+                        queue.sort(tauComparator);
+                        if (srtdebug || time < 1000)
+                            System.out.println("time " + time + "ms: Process " + p.name() + " (tau " + p.tau + "ms) completed I/O; added to ready queue " + queueString(queue));
+                    }
+                    i--;
+                }
+            }
+
+            //3 arrival check
+            if(!processes.isEmpty() && processes.get(0).getArrivalTime() == time) {
+                Process p = processes.get(0);
+                processes.remove(0);
+                queue.add(p);
+                queue.sort(tauComparator);
+                if (srtdebug || time < 1000)
+                    System.out.println("time " + time + "ms: Process " + p.name()  + " (tau " + p.tau + "ms) arrived; added to ready queue " + queueString(queue));
+            }
+
+            //4 assign cpu
+            if(curr_proc == null && context_wait == 0){
+                if(queue.size() > 0){
+                    // the cpu is free assign a ready process to
+                    //curr_proc = queue.remove(0);
+                    from_queue = queue.remove(0);
+                    context_wait += tcs/2;
+                    context_switches++;
+                }
+            }
+
+            //5 run current
+            if(context_wait == 0  && curr_proc != null) {
+                curr_proc.elapsed_time++;
+                utilized++;
+            }
+            for(Process p : queue){
+                if (p != to_be_preempted) {
+                    p.turnaround_time++;
+                }
+                p.wait_time++;
+            }
+            if(from_queue != null) from_queue.turnaround_time++;
+            if(from_queue != null) from_queue.turnaround_time++;
+            if(curr_proc != null) curr_proc.turnaround_time++;
+            // if(to_add != null) to_add.turnaround_time++;
+            if(to_be_preempted != null) to_be_preempted.turnaround_time++;
+
+            //6 run waiting
+            for(Process p : waiting) p.elapsed_time++;
+
+
+            if(context_wait > 0) {
+                context_wait--;
+                if(context_wait == 0 && to_add != null) {
+                    //context just switched
+                    queue.add(to_add);
+                    to_add = null;
+                    queue.sort(tauComparator);
+                }
+                if (context_wait == 0 && to_be_preempted != null) {
+                    curr_proc = to_be_preempted;
+                    System.out.printf("time %dms: Process %s (tau %dms) started using the CPU for %dms burst %s\n",
+                            time, to_be_preempted.name(), to_be_preempted.tau, to_be_preempted.getCurrentBurst());
+                    to_be_preempted = null;
+                } else if(context_wait == 0 && from_queue != null) {
+                    long burst_length = from_queue.getBursts().get(from_queue.current_burst);
+                    String message = "time " + (time + 1) + "ms: Process " + from_queue.name() + " (tau " + from_queue.tau + "ms) started using the CPU for ";
+                    if(from_queue.elapsed_time != 0) message += "remaining " + (burst_length - from_queue.elapsed_time) + "ms of ";
+                    message += burst_length + "ms burst " + queueString(queue);
+                    if (srtdebug || time < 1000)
+                        System.out.println(message);
+                    curr_proc = from_queue;
+                    from_queue = null;
+                    queue.sort(tauComparator);
+                }
+            }
+            time++;
+        }
+
+        double average_turnaround = turnaround_time / (double) burst_count;
+        double average_wait = wait_time / (double) burst_count;
+        time += context_wait;
+        double cpu_utilization = 100 * utilized / (double) time;
+
+        // write stats to file
+        try {
+            writer.write(get_stats("SRT", average_burst_time, average_wait, average_turnaround, context_switches, preemptions, cpu_utilization));
+            writer.flush();
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+        return time;
+    }
+
     public static long RR(long time_limit, ArrayList<Process> processes, BufferedWriter writer){
         long time = 0;
         int context_switches = 0;
@@ -143,6 +350,7 @@ public class Project {
         int utilized = 0;
         int burst_sum = 0;
         int burst_count = 0;
+
         for(Process p : processes){
             ArrayList<Long> bursts = p. getBursts();
             for(int i = 0; i < bursts.size(); i+=2){
@@ -163,15 +371,16 @@ public class Project {
         long context_wait = 0;
         Process curr_proc = null;
         Process to_add = null;
-        Process assigned = null;
-        while (!queue.isEmpty() || curr_proc!=null || !processes.isEmpty() || !waiting.isEmpty() || to_add != null || assigned != null) {
+        Process from_queue = null;
+        while (!queue.isEmpty() || curr_proc!=null || !processes.isEmpty() || !waiting.isEmpty() || to_add != null || from_queue != null) {
 
             //1 compare current process
            if(curr_proc != null && context_wait == 0) {
                if(curr_proc.getBursts().get(curr_proc.current_burst) == curr_proc.elapsed_time) {
                    // we are done with the current process before it reaches its allotted time
                    curr_proc.elapsed_time = 0;
-                   curr_proc.nextBurst(); // use that method instead of curr_proc.current_burst++;
+                   curr_proc.current_burst++;
+
 
                    turnaround_time += curr_proc.turnaround_time;
                    curr_proc.turnaround_time = 0;
@@ -249,7 +458,7 @@ public class Project {
                 if(queue.size() > 0){
                     // the cpu is free assign a ready process to
                     //curr_proc = queue.remove(0);
-                    assigned = queue.remove(0);
+                    from_queue = queue.remove(0);
                     context_wait += tcs/2;
                     context_switches++;
                 }
@@ -265,8 +474,11 @@ public class Project {
                 if(p.elapsed_time != 0) p.turnaround_time++;
                 p.wait_time++;
             }
-            if(assigned != null) assigned.turnaround_time++;
+            if(from_queue != null) from_queue.turnaround_time++;
             if(curr_proc != null) curr_proc.turnaround_time++;
+            //if(to_add != null) to_add.turnaround_time++;
+            if(from_queue != null) from_queue.turnaround_time++;
+
 
             //6 run waiting
             for(Process p : waiting) p.elapsed_time++;
@@ -279,15 +491,16 @@ public class Project {
                         queue.add(to_add);
                         to_add = null;
                 }
-                if(context_wait == 0 && assigned != null) {
-                    long burst_length = assigned.getBursts().get(assigned.current_burst);
-                    String message = "time " + (time + 1) + "ms: Process " + assigned.name() +
+                if(context_wait == 0 && from_queue != null) {
+                    long burst_length = from_queue.getBursts().get(from_queue.current_burst);
+                    String message = "time " + (time + 1) + "ms: Process " + from_queue.name() +
                             " started using the CPU for ";
-                    if(assigned.elapsed_time != 0) message += "remaining " + (burst_length - assigned.elapsed_time) + "ms of ";
+                    if(from_queue.elapsed_time != 0) message += "remaining " + (burst_length - from_queue.elapsed_time) + "ms of ";
                     message += burst_length + "ms burst " + queueString(queue);
-                    System.out.println(message);
-                    curr_proc = assigned;
-                    assigned = null;
+                    if (time < 1000)
+                        System.out.println(message);
+                    curr_proc = from_queue;
+                    from_queue = null;
                 }
             }
             time++;
@@ -302,7 +515,8 @@ public class Project {
         
         double average_turnaround = turnaround_time / (double) burst_count;
         double average_wait = wait_time / (double) burst_count;
-        double cpu_utilization = utilized / (double) time;
+        time += context_wait;
+        double cpu_utilization = 100 * utilized / (double) time;
 
         // write stats to file
         try {
@@ -334,7 +548,6 @@ public class Project {
         for (Process p : processes) {
             print_process(p);
         }
-        System.out.println();
 
         run_processes(processes, writer);
     }
@@ -344,9 +557,9 @@ public class Project {
         long FCFS_time = FCFS(cloneProcesses(processes), writer);
         System.out.println("time " + FCFS_time + "ms: Simulator ended for FCFS [Q: empty]");
 
-        //System.out.println("\ntime " + 0 + "ms: Simulator started for SJF [Q: empty]");
-        //long SJF_time = SJF(cloneProcesses(processes), writer);
-        //System.out.println("time " + SJF_time + "ms: Simulator ended for SJF [Q: empty]");
+        System.out.println("\ntime " + 0 + "ms: Simulator started for SJF [Q: empty]");
+        long SJF_time = SJF(cloneProcesses(processes), writer);
+        System.out.println("time " + SJF_time + "ms: Simulator ended for SJF [Q: empty]");
 
         //System.out.println("\ntime " + 0 + "ms: Simulator started for SRT [Q: empty]");
         //long SRT_time = SRT(cloneProcesses(processes), writer);
