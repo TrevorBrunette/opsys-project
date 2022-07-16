@@ -27,8 +27,8 @@ public class Process {
 
     // https://en.wikipedia.org/wiki/Moving_average under the exponential average section
     //TODO I thought the equation was (1-alpha)(tau) + (alpha)(last burst)
-    public void nextBurst() {
-        tau = (long) Math.ceil(tau + Project.alpha * (bursts.get(current_burst++) - tau));
+    public void recalculateTau() {
+        tau = (long) Math.ceil(tau + Project.alpha * (bursts.get(current_burst-1) - tau));
     }
 
     public long getArrivalTime() {
@@ -38,6 +38,8 @@ public class Process {
     public ArrayList<Long> getBursts() {
         return bursts;
     }
+
+    public long getCurrentBurst() { return bursts.get(current_burst); }
 
     @Override
     public String toString() {
