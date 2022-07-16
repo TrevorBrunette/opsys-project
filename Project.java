@@ -16,6 +16,16 @@ public class Project {
     public static long tslice;
 
     // for process queue to know when processes arrive
+    private static Comparator<Process> tauComparator = new Comparator<Process>(){
+        @Override
+        public int compare(Process o1, Process o2) {
+            int i = Long.compare(o1.tau - o1.elapsed_time, o2.tau - o2.elapsed_time);
+            if(i == 0) return idComparator.compare(o1, o2);
+            else return i;
+        }
+    };
+
+    // for process queue to know when processes arrive
     private static Comparator<Process> arrivalComparator = new Comparator<Process>(){
         @Override
         public int compare(Process o1, Process o2) {
@@ -574,7 +584,7 @@ public class Project {
                    }
                    curr_proc = null;
                    context_wait += tcs / 2;
-                   context_switches++;
+                  // context_switches++;
                    elapsed = 0;
 
                } else if(time_limit != 0 && elapsed == time_limit) {
@@ -641,7 +651,7 @@ public class Project {
                 elapsed++;
             }
             for(Process p : queue){
-                if(p.elapsed_time != 0) p.turnaround_time++;
+                p.turnaround_time++;
                 p.wait_time++;
             }
             if(from_queue != null) from_queue.turnaround_time++;
@@ -675,13 +685,6 @@ public class Project {
             }
             time++;
         }
-
-        //1 compare current process
-        //2 compare waiting processes
-        //3 arrival check
-        //4 assign cpu
-        //5 run current
-        //6 run waiting
         
         double average_turnaround = turnaround_time / (double) burst_count;
         double average_wait = wait_time / (double) burst_count;
@@ -696,8 +699,7 @@ public class Project {
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
-
-        return time + context_wait;
+        return time;
     }
 
     public static void test() {
